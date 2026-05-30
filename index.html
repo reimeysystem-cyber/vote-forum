@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoteForum Pro - 誰でも作れる投票＆議論プラットフォーム</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f8fafc;
+        }
+        .transition-all-300 {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        /* スクロールバーのカスタマイズ */
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col text-slate-800">
+
+    <!-- ナビゲーションバー -->
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <!-- ロゴ・ホームボタン -->
+                <div class="flex items-center">
+                    <button onclick="showPage('home')" class="flex items-center space-x-2 text-indigo-600 font-black text-2xl tracking-wider">
+                        <i class="fa-solid fa-square-poll-vertical text-3xl"></i>
+                        <span>VoteForum</span>
+                    </button>
+                    <div class="hidden md:flex ml-10 space-x-4">
+                        <button onclick="showPage('home')" class="text-slate-600 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-all-300">
+                            <i class="fa-solid fa-house mr-1"></i> ホーム
+                        </button>
+                        <button onclick="openCreateModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-md hover:shadow-lg transition-all-300 flex items-center">
+                            <i class="fa-solid fa-plus-circle mr-1"></i> 投票を作る
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- ヘッダー右側コントロール -->
+                <div class="flex items-center space-x-4">
+                    <!-- 検索バー（デスクトップ） -->
+                    <div class="relative hidden sm:block">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                            <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
+                        </span>
+                        <input type="text" id="globalSearch" oninput="searchPolls()" placeholder="投票ルームを検索..." class="w-48 lg:w-64 pl-9 pr-4 py-1.5 bg-slate-100 hover:bg-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none rounded-full text-sm transition-all-300">
+                    </div>
+
+                    <!-- 未ログイン時のボタン -->
+                    <div id="auth-logged-out" class="flex items-center space-x-2">
+                        <button onclick="openAuthModal('login')" class="text-slate-600 hover:text-indigo-600 px-3 py-2 text-sm font-medium">ログイン</button>
+                        <button onclick="openAuthModal('register')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-lg text-sm font-medium border border-indigo-200 transition-all-300">新規登録</button>
+                    </div>
+                    
+                    <!-- ログイン時のプロフィール表示 -->
+                    <div id="auth-logged-in" class="hidden flex items-center space-x-3">
+                        <button onclick="openBadgeModal()" class="flex items-center space-x-2 bg-slate-50 hover:bg-indigo-50/50 border border-slate-200 hover:border-indigo-200 rounded-full py-1 pl-2 pr-4 transition-all-300 text-left" title="バッジ実績を見る">
+                            <img id="userAvatar" src="" alt="avatar" class="w-8 h-8 rounded-full bg-indigo-100 object-cover">
+                            <div class="flex flex-col">
+                                <div class="flex items-center space-x-1">
+                                    <span id="userNameDisplay" class="text-xs font-bold text-slate-700">ゲスト</span>
+                                    <span id="userAdminBadge" class="hidden bg-red-500 text-white text-[9px] px-1 rounded font-black">ADMIN</span>
+                                </div>
+                                <span id="userBadgeLabel" class="text-[9px] text-indigo-600 font-bold flex items-center">
+                                    <span>ビギナー</span>
+                                    <i class="fa-solid fa-circle-info ml-1 text-slate-400"></i>
+                                </span>
+                            </div>
+                        </button>
+                        <button onclick="logout()" class="text-slate-400 hover:text-red-500 p-2 rounded-full transition-all-300" title="ログアウト">
+                            <i class="fa-solid fa-right-from-bracket text-lg"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <!-- ================= HOME PAGE ================= -->
+        <div id="page-home" class="space-y-8">
+            <!-- ヒーローバナー -->
+            <div class="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
+                <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl">
+                    <i class="fa-solid fa-comments"></i>
+                </div>
+                <div class="relative z-10 max-w-2xl space-y-4">
+                    <span class="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm">
+                        <i class="fa-solid fa-cloud mr-1"></i> クラウド保存でリアルタイムにみんなと繋がる！
+                    </span>
+                    <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-none">誰でも作れる、熱く語れる。</h1>
+                    <p class="text-indigo-100 text-sm sm:text-base">メアド不要のスピードアカウント登録！自由に投票ルームを立ち上げて、他のユーザーとリアルタイムでチャット（議論）を楽しもう。発言数に応じて限定の活動称号バッジが付与されます！</p>
+                    <div class="flex flex-wrap gap-3 pt-2">
+                        <button onclick="openCreateModal()" class="bg-white text-indigo-600 hover:bg-indigo-50 px-5 py-3 rounded-xl font-bold text-sm shadow-md transition-all-300 flex items-center">
+                            <i class="fa-solid fa-circle-plus mr-2"></i> 投票ルームを立ち上げる
+                        </button>
+                        <a href="#poll-section" class="bg-indigo-500/30 hover:bg-indigo-500/50 border border-white/20 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all-300 flex items-center">
+                            ルームを探す
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- フィルタ＆並び替え -->
+            <div id="poll-section" class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-slate-200 pb-5">
+                <div class="flex items-center space-x-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
+                    <button onclick="filterCategory('all')" id="cat-all" class="cat-btn bg-indigo-600 text-white px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all-300 shadow-sm whitespace-nowrap">
+                        すべて
+                    </button>
+                    <button onclick="filterCategory('ガジェット')" id="cat-gadget" class="cat-btn bg-white hover:bg-slate-100 text-slate-600 px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-slate-200 transition-all-300 whitespace-nowrap">
+                        ガジェット・IT
+                    </button>
+                    <button onclick="filterCategory('エンタメ')" id="cat-ent" class="cat-btn bg-white hover:bg-slate-100 text-slate-600 px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-slate-200 transition-all-300 whitespace-nowrap">
+                        エンタメ・ホビー
+                    </button>
+                    <button onclick="filterCategory('ライフスタイル')" id="cat-life" class="cat-btn bg-white hover:bg-slate-100 text-slate-600 px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-slate-200 transition-all-300 whitespace-nowrap">
+                        ライフスタイル
+                    </button>
+                    <button onclick="filterCategory('社会・政治')" id="cat-society" class="cat-btn bg-white hover:bg-slate-100 text-slate-600 px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-slate-200 transition-all-300 whitespace-nowrap">
+                        社会・経済
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between sm:justify-end gap-2">
+                    <select id="sortBy" onchange="sortPolls()" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="newest">新しい順</option>
+                        <option value="votes">投票数順</option>
+                        <option value="comments">コメント数順</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- 読込中インジケータ -->
+            <div id="loadingIndicator" class="text-center py-16">
+                <i class="fa-solid fa-circle-notch text-4xl text-indigo-600 animate-spin mb-4 block"></i>
+                <span class="text-sm text-slate-500 font-medium">クラウドからデータをロードしています...</span>
+            </div>
+
+            <!-- 空メッセージ -->
+            <div id="emptyState" class="hidden text-center py-16 bg-white rounded-3xl border border-slate-200 border-dashed max-w-md mx-auto">
+                <i class="fa-solid fa-folder-open text-5xl text-slate-300 mb-4"></i>
+                <h3 class="text-lg font-bold text-slate-700">該当する投票が見つかりません</h3>
+                <p class="text-sm text-slate-500 mt-1">最初の投票ルームを立ち上げてみましょう！</p>
+                <button onclick="openCreateModal()" class="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-bold transition-all-300 shadow-md">
+                    ルームを作成
+                </button>
+            </div>
+
+            <!-- 投票カードリスト -->
+            <div id="pollsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 動的に生成 -->
+            </div>
+        </div>
+
+        <!-- ================= DETAIL PAGE (ROOM) ================= -->
+        <div id="page-detail" class="hidden space-y-6">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <button onclick="showPage('home')" class="inline-flex items-center text-slate-500 hover:text-indigo-600 font-bold text-sm transition-all-300">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> 一覧に戻る
+                </button>
+                
+                <!-- 管理者専用ルームコントロール -->
+                <div id="adminRoomControl" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-xl flex items-center space-x-3 text-xs font-bold">
+                    <span><i class="fa-solid fa-shield-halved text-sm mr-1"></i> 管理者メニュー:</span>
+                    <button id="adminClosePollBtn" onclick="adminTogglePollStatus()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg transition-all-300">
+                        投票を締め切る
+                    </button>
+                </div>
+            </div>
+
+            <!-- ルーム詳細コンテナ -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- 左/中央: 投票モジュール -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+                        <div class="space-y-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span id="detailCategory" class="bg-indigo-50 text-indigo-600 text-xs font-bold px-3 py-1 rounded-full">カテゴリ</span>
+                                <span id="detailStatus" class="bg-emerald-50 text-emerald-600 text-xs font-bold px-3 py-1 rounded-full">受付中</span>
+                            </div>
+                            <h2 id="detailTitle" class="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight leading-tight">タイトル</h2>
+                            <p id="detailDescription" class="text-slate-600 text-sm sm:text-base leading-relaxed">説明文</p>
+                        </div>
+
+                        <hr class="border-slate-100">
+
+                        <!-- 選択肢 -->
+                        <div class="space-y-4">
+                            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                                <span>選択肢</span>
+                                <span id="detailTotalVotes">全 0 票</span>
+                            </h3>
+                            <div id="detailOptionsContainer" class="space-y-3">
+                                <!-- 動的に生成 -->
+                            </div>
+                        </div>
+
+                        <!-- 投稿者メタデータ -->
+                        <div class="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-100 text-xs text-slate-400">
+                            <div class="flex items-center space-x-2">
+                                <img id="detailCreatorAvatar" class="w-6 h-6 rounded-full" src="" alt="avatar">
+                                <span class="font-medium text-slate-500">作成者: <span id="detailCreatorName" class="font-bold text-slate-700">ユーザー</span></span>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <span><i class="fa-regular fa-calendar-check mr-1"></i>期限: <span id="detailDeadline">2026/12/31</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右: 議論チャットボード -->
+                <div class="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col h-[620px]">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                        <h3 class="font-black text-slate-800 flex items-center text-lg">
+                            <i class="fa-solid fa-comments text-indigo-600 mr-2 text-xl"></i> 議論ボード
+                        </h3>
+                        <span id="commentCount" class="bg-slate-100 text-slate-600 text-xs font-bold px-2.5 py-1 rounded-full">0</span>
+                    </div>
+
+                    <!-- チャットログ -->
+                    <div id="commentsList" class="flex-grow overflow-y-auto py-4 space-y-4 pr-1 scrollbar-thin">
+                        <!-- 動的に挿入 -->
+                    </div>
+
+                    <!-- チャット入力 -->
+                    <div class="pt-4 border-t border-slate-100 space-y-3">
+                        <div id="commentInputBlock" class="relative">
+                            <textarea id="commentText" rows="3" placeholder="コメントを入力して議論に参加しましょう..." class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none transition-all-300"></textarea>
+                            <button onclick="postComment()" class="absolute right-3 bottom-3 bg-indigo-600 hover:bg-indigo-700 text-white w-8 h-8 rounded-lg flex items-center justify-center shadow-md transition-all-300">
+                                <i class="fa-solid fa-paper-plane text-xs"></i>
+                            </button>
+                        </div>
+                        <div class="flex items-center justify-between text-[11px] text-slate-400">
+                            <span><i class="fa-solid fa-shield-halved mr-1"></i>健全な議論を心がけましょう</span>
+                            <span id="userPostCountTracker" class="font-bold text-indigo-500">あなたの現在の投稿数: 0</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- フッター -->
+    <footer class="bg-white border-t border-slate-100 py-8 mt-12">
+        <div class="max-w-7xl mx-auto px-4 text-center space-y-4">
+            <div class="flex justify-center items-center space-x-2 text-indigo-600 font-bold">
+                <i class="fa-solid fa-square-poll-vertical text-xl"></i>
+                <span>VoteForum Pro</span>
+            </div>
+            <p class="text-xs text-slate-400">© 2026 VoteForum. クラウド保存 & リアルタイム・マルチプレイヤー同期対応</p>
+        </div>
+    </footer>
+
+    <!-- ================= MODALS & TOASTS ================= -->
+
+    <!-- モーダル用オーバーレイ背景 -->
+    <div id="modalOverlay" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        
+        <!-- 1: 投票新規作成モーダル -->
+        <div id="createPollModal" class="hidden bg-white rounded-3xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 space-y-6 transition-all-300 transform scale-95 opacity-0">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <h3 class="text-xl font-black text-slate-800 flex items-center">
+                    <i class="fa-solid fa-circle-plus text-indigo-600 mr-2 text-2xl"></i> 新しい投票ルームを作成
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-2 rounded-full transition-all-300">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <form id="createPollForm" onsubmit="handleCreatePoll(event)" class="space-y-4">
+                <div class="space-y-1">
+                    <label class="text-sm font-bold text-slate-700">投票タイトル <span class="text-red-500">*</span></label>
+                    <input type="text" id="pollTitleInput" required placeholder="例: 作業BGMに最適な音楽ジャンルは？" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-sm font-bold text-slate-700">詳細説明・論点 <span class="text-red-500">*</span></label>
+                    <textarea id="pollDescInput" required rows="3" placeholder="議論の前提となる背景やルールについて説明してください。" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-sm font-bold text-slate-700">カテゴリー <span class="text-red-500">*</span></label>
+                        <select id="pollCategoryInput" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <option value="ガジェット">ガジェット・IT</option>
+                            <option value="エンタメ">エンタメ・ホビー</option>
+                            <option value="ライフスタイル">ライフスタイル</option>
+                            <option value="社会・政治">社会・経済</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-sm font-bold text-slate-700">投票期限 <span class="text-red-500">*</span></label>
+                        <input type="date" id="pollDeadlineInput" required class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-bold text-slate-700 flex justify-between items-center">
+                        <span>選択肢 <span class="text-red-500">* (2〜6個)</span></span>
+                        <button type="button" onclick="addOptionInput()" class="text-indigo-600 hover:text-indigo-700 text-xs font-bold flex items-center">
+                            <i class="fa-solid fa-plus mr-1"></i> 選択肢を追加
+                        </button>
+                    </label>
+                    <div id="optionInputsContainer" class="space-y-2">
+                        <div class="flex items-center gap-2">
+                            <input type="text" placeholder="選択肢 1" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <input type="text" placeholder="選択肢 2" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                    <button type="button" onclick="closeModal()" class="border border-slate-200 text-slate-600 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-slate-50 transition-all-300">キャンセル</button>
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all-300">ルームを作成</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 2: ログイン＆新規アカウント登録モーダル -->
+        <div id="authModal" class="hidden bg-white rounded-3xl shadow-xl max-w-md w-full p-6 sm:p-8 space-y-6 transition-all-300 transform scale-95 opacity-0">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <h3 id="authModalTitle" class="text-xl font-black text-slate-800">アカウント作成 / ログイン</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-2 rounded-full transition-all-300">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <form id="authForm" onsubmit="handleAuth(event)" class="space-y-4">
+                <input type="hidden" id="authMode" value="register">
+                
+                <div class="space-y-1">
+                    <label class="text-sm font-bold text-slate-700">ユーザー名 <span class="text-red-500">*</span></label>
+                    <input type="text" id="authUsername" required placeholder="Taro_Tanaka" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-sm font-bold text-slate-700">パスワード <span class="text-red-500">*</span></label>
+                    <input type="password" id="authPassword" required placeholder="••••••••" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <!-- 新規登録モード時のみ出現する、非必須の管理者コード入力フィールド -->
+                <div id="adminCodeGroup" class="space-y-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label class="text-xs font-bold text-slate-500 flex justify-between items-center">
+                        <span>管理者用コード（一般ユーザーは不要です）</span>
+                    </label>
+                    <input type="password" id="authAdminCode" placeholder="管理者の方のみコードを入力してください" class="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-xs bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none mt-1">
+                </div>
+
+                <button type="submit" id="authSubmitBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold shadow-md hover:shadow-lg transition-all-300">
+                    アカウントを作成
+                </button>
+
+                <div class="text-center pt-2">
+                    <button type="button" id="authSwitchBtn" onclick="toggleAuthMode()" class="text-xs text-indigo-600 hover:underline font-bold">
+                        すでに登録済みの場合はこちら (ログイン)
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 3: バッジ一覧モーダル -->
+        <div id="badgeModal" class="hidden bg-white rounded-3xl shadow-xl max-w-md w-full p-6 sm:p-8 space-y-6 transition-all-300 transform scale-95 opacity-0">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                <h3 class="text-xl font-black text-slate-800 flex items-center">
+                    <i class="fa-solid fa-medal text-indigo-600 mr-2 text-2xl"></i> バッジ実績一覧
+                </h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 p-2 rounded-full transition-all-300">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- 現在のステータス要約 -->
+            <div class="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 flex justify-around text-center">
+                <div>
+                    <span class="text-xs text-slate-500 block">現在の投票数</span>
+                    <span id="badgeModalVotesCount" class="text-2xl font-black text-indigo-600">0</span>
+                </div>
+                <div class="border-l border-indigo-100"></div>
+                <div>
+                    <span class="text-xs text-slate-500 block">現在のチャット投稿数</span>
+                    <span id="badgeModalPostsCount" class="text-2xl font-black text-indigo-600">0</span>
+                </div>
+            </div>
+
+            <!-- 実績リスト -->
+            <div class="space-y-3" id="badgeRequirementsList">
+                <!-- 動的に生成 -->
+            </div>
+
+            <div class="pt-2 text-center text-xs text-slate-400">
+                <p>投票や発言を増やして、新しいバッジをアンロックしましょう！</p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 通知用トースト -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-10 opacity-0 transition-all-300 pointer-events-none flex items-center space-x-2 bg-slate-900 text-white px-5 py-3 rounded-xl shadow-2xl text-sm">
+        <span id="toastIcon"></span>
+        <span id="toastMessage">メッセージ</span>
+    </div>
+
+    <!-- Firebase SDK Modules -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ================= CONFIGURATION & INITIALIZATION =================
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+        // 管理者コード定数
+        const ADMIN_SECRET_CODE = "ADMIN123";
+
+        // バッジ定義
+        const BADGES = {
+            beginner: { name: "🟢 ビギナー", req: "初期状態で全員に付与されます", style: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+            voter: { name: "🔷 アクティブ投票者", req: "投票数を3回以上に増やす", style: "bg-blue-50 text-blue-700 border-blue-200" },
+            elite: { name: "🔥 議論エリート", req: "チャット投稿数を5回以上に増やす", style: "bg-orange-50 text-orange-700 border-orange-200" },
+            king: { name: "👑 フォーラムの主", req: "チャット投稿数を50回以上に増やす", style: "bg-purple-50 text-purple-700 border-purple-200" }
+        };
+
+        // ローカルでのデータキャッシュ
+        let polls = [];
+        let currentUser = null;
+        let activePage = "home";
+        let activePollId = null;
+        let selectedCategory = "all";
+        let authStateInit = false;
+
+        // ================= FIRESTORE PATHS (RULE 1) =================
+        // パブリック公開データ保存パス
+        const pollsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'polls');
+        const usersCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+
+        // ================= AUTHENTICATION FLOW (RULE 3) =================
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Auth init failed:", err);
+                showToast("データベース接続エラーが発生しました", "warning");
+            }
+        };
+
+        // 一番最初に起動
+        initAuth();
+
+        // ログイン監視
+        onAuthStateChanged(auth, async (firebaseUser) => {
+            authStateInit = true;
+            // 現在ログイン中のフォーラム用ユーザーがいるか確認
+            const storedUser = sessionStorage.getItem("forum_user");
+            if (storedUser) {
+                const userObj = JSON.parse(storedUser);
+                // データベース上の最新の統計(発言数など)を取得
+                const userSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userObj.username));
+                if (userSnap.exists()) {
+                    currentUser = userSnap.data();
+                    sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                } else {
+                    currentUser = userObj;
+                }
+            } else {
+                currentUser = null;
+            }
+            updateAuthUI();
+            
+            // データのリアルタイム購読（認証後に行う）
+            subscribeToPolls();
+        });
+
+        // ================= REALTIME SYNC (onSnapshot) =================
+        let unsubscribePolls = null;
+        function subscribeToPolls() {
+            if (unsubscribePolls) unsubscribePolls();
+
+            // RULE 2: 複雑なクエリは避け、クライアント側でフィルタ・ソートを行う
+            unsubscribePolls = onSnapshot(pollsCollectionRef, (snapshot) => {
+                polls = [];
+                snapshot.forEach(doc => {
+                    polls.push({ ...doc.data(), id: doc.id });
+                });
+
+                // インジケータを隠す
+                document.getElementById("loadingIndicator").classList.add("hidden");
+
+                if (activePage === "home") {
+                    renderPolls();
+                } else if (activePage === "detail") {
+                    renderPollDetails();
+                }
+            }, (error) => {
+                console.error("Firestore polls listener error:", error);
+                showToast("データ同期中にエラーが発生しました", "warning");
+            });
+        }
+
+        // --- ダイナミックバッジ判定 ---
+        function getUserBadge(userData) {
+            if (!userData) return BADGES.beginner;
+            const posts = userData.postCount || 0;
+            const votes = userData.votesCount || 0;
+
+            if (posts >= 50) {
+                return BADGES.king; 
+            } else if (posts >= 5) {
+                return BADGES.elite; 
+            } else if (votes >= 3) {
+                return BADGES.voter; 
+            }
+            return BADGES.beginner;
+        }
+
+        // ================= PAGE CONTROLLERS =================
+        function showPage(pageId) {
+            activePage = pageId;
+            document.getElementById("page-home").classList.add("hidden");
+            document.getElementById("page-detail").classList.add("hidden");
+
+            if (pageId === "home") {
+                document.getElementById("page-home").classList.remove("hidden");
+                renderPolls();
+            } else if (pageId === "detail") {
+                document.getElementById("page-detail").classList.remove("hidden");
+                renderPollDetails();
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // --- トースト通知 ---
+        function showToast(message, type = "success") {
+            const toast = document.getElementById("toast");
+            const toastIcon = document.getElementById("toastIcon");
+            const toastMsg = document.getElementById("toastMessage");
+
+            toastMsg.innerText = message;
+            if (type === "success") {
+                toastIcon.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>`;
+            } else {
+                toastIcon.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-400 text-lg"></i>`;
+            }
+
+            toast.classList.remove("translate-y-10", "opacity-0");
+            toast.classList.add("translate-y-0", "opacity-100");
+
+            setTimeout(() => {
+                toast.classList.remove("translate-y-0", "opacity-100");
+                toast.classList.add("translate-y-10", "opacity-0");
+            }, 3000);
+        }
+
+        // ================= USER & AUTHENTICATION =================
+        function openAuthModal(mode) {
+            const modal = document.getElementById("authModal");
+            const title = document.getElementById("authModalTitle");
+            const adminGroup = document.getElementById("adminCodeGroup");
+            const submitBtn = document.getElementById("authSubmitBtn");
+            const switchBtn = document.getElementById("authSwitchBtn");
+            const authMode = document.getElementById("authMode");
+
+            document.getElementById("modalOverlay").classList.remove("hidden");
+            modal.classList.remove("hidden");
+            setTimeout(() => {
+                modal.classList.remove("scale-95", "opacity-0");
+            }, 50);
+
+            document.getElementById("authForm").reset();
+
+            if (mode === "login") {
+                title.innerText = "ログイン";
+                adminGroup.classList.add("hidden");
+                submitBtn.innerText = "ログインする";
+                switchBtn.innerText = "メアド不要！新しくアカウント作成する";
+                authMode.value = "login";
+            } else {
+                title.innerText = "スピードアカウント登録";
+                adminGroup.classList.remove("hidden");
+                submitBtn.innerText = "アカウントを作成する";
+                switchBtn.innerText = "すでにアカウントをお持ちの方 (ログイン)";
+                authMode.value = "register";
+            }
+        }
+
+        function toggleAuthMode() {
+            const currentMode = document.getElementById("authMode").value;
+            openAuthModal(currentMode === "login" ? "register" : "login");
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const mode = document.getElementById("authMode").value;
+            const username = document.getElementById("authUsername").value.trim();
+            const password = document.getElementById("authPassword").value;
+            const adminCode = document.getElementById("authAdminCode").value.trim();
+
+            if (!username || !password) {
+                showToast("ユーザー名とパスワードを入力してください", "warning");
+                return;
+            }
+
+            const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', username);
+
+            try {
+                if (mode === "register") {
+                    const userSnap = await getDoc(userDocRef);
+                    if (userSnap.exists()) {
+                        showToast("そのユーザー名はすでに使われています", "warning");
+                        return;
+                    }
+
+                    const isAdmin = (adminCode === ADMIN_SECRET_CODE);
+                    const userAvatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`;
+
+                    const newUser = {
+                        username: username,
+                        password: password,
+                        isAdmin: isAdmin,
+                        postCount: 0,
+                        votesCount: 0,
+                        avatar: userAvatarUrl
+                    };
+
+                    await setDoc(userDocRef, newUser);
+                    currentUser = newUser;
+                    sessionStorage.setItem("forum_user", JSON.stringify(newUser));
+                    
+                    if (isAdmin) {
+                        showToast("管理者としてアカウントを登録し、ログインしました！");
+                    } else {
+                        showToast("スピード登録が完了してログインしました！");
+                    }
+                } else {
+                    const userSnap = await getDoc(userDocRef);
+                    if (!userSnap.exists() || userSnap.data().password !== password) {
+                        showToast("ユーザー名またはパスワードが正しくありません", "warning");
+                        return;
+                    }
+                    currentUser = userSnap.data();
+                    sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                    showToast(`${username} としてログインしました！`);
+                }
+
+                updateAuthUI();
+                closeModal();
+                
+                if (activePage === "detail") {
+                    renderPollDetails();
+                } else {
+                    renderPolls();
+                }
+            } catch (err) {
+                console.error("Auth process error:", err);
+                showToast("認証に失敗しました。再試行してください。", "warning");
+            }
+        }
+
+        function logout() {
+            if (!currentUser) return;
+            showToast("ログアウトしました");
+            currentUser = null;
+            sessionStorage.removeItem("forum_user");
+            updateAuthUI();
+            
+            if (activePage === "detail") {
+                renderPollDetails();
+            } else {
+                renderPolls();
+            }
+        }
+
+        function updateAuthUI() {
+            const loggedOut = document.getElementById("auth-logged-out");
+            const loggedIn = document.getElementById("auth-logged-in");
+
+            if (currentUser) {
+                loggedOut.classList.add("hidden");
+                loggedIn.classList.remove("hidden");
+                
+                document.getElementById("userNameDisplay").innerText = currentUser.username;
+                document.getElementById("userAvatar").src = currentUser.avatar;
+
+                const adminBadge = document.getElementById("userAdminBadge");
+                if (currentUser.isAdmin) {
+                    adminBadge.classList.remove("hidden");
+                } else {
+                    adminBadge.classList.add("hidden");
+                }
+
+                const badge = getUserBadge(currentUser);
+                document.getElementById("userBadgeLabel").innerHTML = `
+                    <span>${badge.name.split(" ")[1]}</span>
+                    <i class="fa-solid fa-circle-info ml-1 text-slate-400"></i>
+                `;
+
+                if (document.getElementById("userPostCountTracker")) {
+                    document.getElementById("userPostCountTracker").innerText = `あなたの現在の投稿数: ${currentUser.postCount}`;
+                }
+            } else {
+                loggedOut.classList.remove("hidden");
+                loggedIn.classList.add("hidden");
+            }
+        }
+
+        // ================= MODAL CONTROLLERS =================
+        function closeModal() {
+            const overlay = document.getElementById("modalOverlay");
+            document.querySelectorAll("#modalOverlay > div").forEach(modal => {
+                modal.classList.add("scale-95", "opacity-0");
+                setTimeout(() => {
+                    modal.classList.add("hidden");
+                }, 200);
+            });
+            setTimeout(() => {
+                overlay.classList.add("hidden");
+            }, 200);
+        }
+
+        function openCreateModal() {
+            if (!currentUser) {
+                showToast("投票ルームを作成するにはログインが必要です", "warning");
+                openAuthModal('login');
+                return;
+            }
+            const modal = document.getElementById("createPollModal");
+            document.getElementById("modalOverlay").classList.remove("hidden");
+            modal.classList.remove("hidden");
+            setTimeout(() => {
+                modal.classList.remove("scale-95", "opacity-0");
+            }, 50);
+        }
+
+        async function openBadgeModal() {
+            if (!currentUser) return;
+            const modal = document.getElementById("badgeModal");
+            
+            // クラウドから最新情報を取得
+            const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
+            const snap = await getDoc(userDocRef);
+            if (snap.exists()) {
+                currentUser = snap.data();
+                sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                updateAuthUI();
+            }
+
+            document.getElementById("badgeModalVotesCount").innerText = currentUser.votesCount || 0;
+            document.getElementById("badgeModalPostsCount").innerText = currentUser.postCount || 0;
+
+            const list = document.getElementById("badgeRequirementsList");
+            list.innerHTML = "";
+
+            const posts = currentUser.postCount || 0;
+            const votes = currentUser.votesCount || 0;
+
+            Object.entries(BADGES).forEach(([key, badge]) => {
+                let isOwned = false;
+                let progressText = "";
+
+                if (key === "beginner") {
+                    isOwned = true;
+                    progressText = "いつでも有効";
+                } else if (key === "voter") {
+                    isOwned = (votes >= 3);
+                    progressText = `進行度: ${votes} / 3 票`;
+                } else if (key === "elite") {
+                    isOwned = (posts >= 5);
+                    progressText = `進行度: ${posts} / 5 回`;
+                } else if (key === "king") {
+                    isOwned = (posts >= 50);
+                    progressText = `進行度: ${posts} / 50 回`;
+                }
+
+                const item = document.createElement("div");
+                item.className = `border rounded-xl p-3 flex justify-between items-center transition-all-300 ${isOwned ? 'border-indigo-200 bg-indigo-50/40 shadow-sm' : 'border-slate-150 bg-slate-50/50 opacity-60'}`;
+                
+                item.innerHTML = `
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-bold text-sm ${isOwned ? 'text-indigo-900' : 'text-slate-500'}">${badge.name}</span>
+                            ${isOwned ? '<span class="bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded-full font-bold">獲得中</span>' : ''}
+                        </div>
+                        <p class="text-xs text-slate-500">${badge.req}</p>
+                    </div>
+                    <span class="text-xs font-bold text-slate-400 whitespace-nowrap bg-white border border-slate-200 px-2 py-1 rounded-lg">${progressText}</span>
+                `;
+                list.appendChild(item);
+            });
+
+            document.getElementById("modalOverlay").classList.remove("hidden");
+            modal.classList.remove("hidden");
+            setTimeout(() => {
+                modal.classList.remove("scale-95", "opacity-0");
+            }, 50);
+        }
+
+        // ================= INPUT FIELDS CONTROLLERS =================
+        function addOptionInput() {
+            const container = document.getElementById("optionInputsContainer");
+            const count = container.children.length;
+            if (count >= 6) {
+                showToast("選択肢は最大6個までです", "warning");
+                return;
+            }
+
+            const div = document.createElement("div");
+            div.className = "flex items-center gap-2 transition-all-300 transform translate-y-2 opacity-0";
+            div.innerHTML = `
+                <input type="text" placeholder="選択肢 ${count + 1}" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                <button type="button" onclick="removeOptionInput(this)" class="text-slate-400 hover:text-red-500 transition-all-300 p-2"><i class="fa-solid fa-trash-can"></i></button>
+            `;
+            container.appendChild(div);
+
+            setTimeout(() => {
+                div.classList.remove("translate-y-2", "opacity-0");
+            }, 10);
+        }
+
+        function removeOptionInput(btn) {
+            const row = btn.parentElement;
+            row.classList.add("scale-95", "opacity-0");
+            setTimeout(() => {
+                row.remove();
+                const inputs = document.querySelectorAll(".poll-option-input");
+                inputs.forEach((input, index) => {
+                    input.placeholder = `選択肢 ${index + 1}`;
+                });
+            }, 200);
+        }
+
+        // ================= POLL MANAGEMENT (WRITE TO DB) =================
+        async function handleCreatePoll(e) {
+            e.preventDefault();
+            if (!currentUser) return;
+
+            const title = document.getElementById("pollTitleInput").value.trim();
+            const description = document.getElementById("pollDescInput").value.trim();
+            const category = document.getElementById("pollCategoryInput").value;
+            const deadline = document.getElementById("pollDeadlineInput").value;
+
+            const optionInputs = document.querySelectorAll(".poll-option-input");
+            const votesObj = {};
+            let validOptionsCount = 0;
+
+            optionInputs.forEach(input => {
+                const val = input.value.trim();
+                if (val) {
+                    votesObj[val] = 0;
+                    validOptionsCount++;
+                }
+            });
+
+            if (validOptionsCount < 2) {
+                showToast("選択肢は最低2つ必要です", "warning");
+                return;
+            }
+
+            const pollId = `poll-${Date.now()}`;
+            const newPoll = {
+                id: pollId,
+                title: title,
+                description: description,
+                category: category,
+                creator: currentUser.username,
+                avatar: currentUser.avatar,
+                deadline: deadline,
+                isClosedByAdmin: false,
+                votes: votesObj,
+                comments: [],
+                voters: [],
+                votesSelected: {}
+            };
+
+            try {
+                // クラウド上のコレクションへ追加
+                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'polls', pollId), newPoll);
+                showToast("新しい投票ルームをオープンしました！");
+                closeModal();
+
+                // フォームリセット
+                document.getElementById("createPollForm").reset();
+                document.getElementById("optionInputsContainer").innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <input type="text" placeholder="選択肢 1" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="text" placeholder="選択肢 2" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                `;
+            } catch (err) {
+                console.error("Failed to add poll to Firebase:", err);
+                showToast("データベースへの追加に失敗しました", "warning");
+            }
+        }
+
+        // ================= RENDERS =================
+        function renderPolls() {
+            const grid = document.getElementById("pollsGrid");
+            const emptyState = document.getElementById("emptyState");
+            grid.innerHTML = "";
+
+            let filtered = [...polls];
+
+            if (selectedCategory !== "all") {
+                filtered = filtered.filter(p => p.category === selectedCategory);
+            }
+
+            const searchVal = document.getElementById("globalSearch").value.toLowerCase().trim();
+            if (searchVal) {
+                filtered = filtered.filter(p => 
+                    p.title.toLowerCase().includes(searchVal) || 
+                    p.description.toLowerCase().includes(searchVal)
+                );
+            }
+
+            const sortBy = document.getElementById("sortBy").value;
+            if (sortBy === "newest") {
+                filtered.sort((a, b) => b.id.localeCompare(a.id));
+            } else if (sortBy === "votes") {
+                filtered.sort((a, b) => {
+                    const totalA = Object.values(a.votes || {}).reduce((sum, v) => sum + v, 0);
+                    const totalB = Object.values(b.votes || {}).reduce((sum, v) => sum + v, 0);
+                    return totalB - totalA;
+                });
+            } else if (sortBy === "comments") {
+                filtered.sort((a, b) => (b.comments || []).length - (a.comments || []).length);
+            }
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove("hidden");
+                grid.classList.add("hidden");
+                return;
+            }
+
+            emptyState.classList.add("hidden");
+            grid.classList.remove("hidden");
+
+            filtered.forEach(poll => {
+                const totalVotes = Object.values(poll.votes || {}).reduce((sum, v) => sum + v, 0);
+                const isExpired = poll.isClosedByAdmin || (new Date(poll.deadline) < new Date());
+                const commentsLength = (poll.comments || []).length;
+                
+                const card = document.createElement("div");
+                card.className = "bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-lg hover:border-indigo-200 transition-all-300 flex flex-col justify-between cursor-pointer group";
+                card.onclick = () => openPollDetail(poll.id);
+
+                card.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="bg-indigo-50 text-indigo-600 text-[11px] font-bold px-2.5 py-1 rounded-full">${poll.category}</span>
+                            <span class="text-xs ${isExpired ? 'text-red-500 font-bold' : 'text-emerald-600 font-semibold'} flex items-center">
+                                <span class="w-1.5 h-1.5 rounded-full ${isExpired ? 'bg-red-500' : 'bg-emerald-500'} mr-1.5 ${isExpired ? '' : 'animate-pulse'}"></span>
+                                ${isExpired ? (poll.isClosedByAdmin ? '締切（管理者）' : '締切') : '受付中'}
+                            </span>
+                        </div>
+                        
+                        <div class="space-y-1">
+                            <h4 class="font-bold text-slate-800 text-base sm:text-lg group-hover:text-indigo-600 transition-all-300 line-clamp-2">${poll.title}</h4>
+                            <p class="text-slate-500 text-xs sm:text-sm line-clamp-2">${poll.description}</p>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">
+                        <div class="flex items-center space-x-1.5">
+                            <img class="w-5 h-5 rounded-full object-cover" src="${poll.avatar}" alt="avatar">
+                            <span class="font-medium text-slate-600 truncate max-w-[100px]">${poll.creator}</span>
+                        </div>
+                        <div class="flex items-center space-x-3 font-semibold">
+                            <span><i class="fa-solid fa-check-to-slot mr-1"></i>${totalVotes} 票</span>
+                            <span><i class="fa-regular fa-comment mr-1"></i>${commentsLength}</span>
+                        </div>
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
+        }
+
+        function filterCategory(cat) {
+            selectedCategory = cat;
+            document.querySelectorAll(".cat-btn").forEach(btn => {
+                btn.className = "cat-btn bg-white hover:bg-slate-100 text-slate-600 px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-slate-200 transition-all-300 whitespace-nowrap";
+            });
+
+            let activeId = "cat-all";
+            if (cat === "ガジェット") activeId = "cat-gadget";
+            else if (cat === "エンタメ") activeId = "cat-ent";
+            else if (cat === "ライフスタイル") activeId = "cat-life";
+            else if (cat === "社会・政治") activeId = "cat-society";
+
+            document.getElementById(activeId).className = "cat-btn bg-indigo-600 text-white px-4 py-2 rounded-full text-xs sm:text-sm font-medium transition-all-300 shadow-sm whitespace-nowrap";
+            renderPolls();
+        }
+
+        function searchPolls() {
+            renderPolls();
+        }
+
+        function sortPolls() {
+            renderPolls();
+        }
+
+        // ================= DETAIL PAGE RENDERING =================
+        function openPollDetail(id) {
+            activePollId = id;
+            showPage('detail');
+        }
+
+        function renderPollDetails() {
+            const poll = polls.find(p => p.id === activePollId);
+            if (!poll) {
+                showPage('home');
+                return;
+            }
+
+            const isExpired = poll.isClosedByAdmin || (new Date(poll.deadline) < new Date());
+            const totalVotes = Object.values(poll.votes || {}).reduce((sum, v) => sum + v, 0);
+
+            // 管理者特別コントロールパネル表示判定
+            const adminPanel = document.getElementById("adminRoomControl");
+            const adminCloseBtn = document.getElementById("adminClosePollBtn");
+            if (currentUser && currentUser.isAdmin) {
+                adminPanel.classList.remove("hidden");
+                adminCloseBtn.innerText = poll.isClosedByAdmin ? "投票を再開（管理者）" : "投票を強制締切";
+            } else {
+                adminPanel.classList.add("hidden");
+            }
+
+            // 本文データ流し込み
+            document.getElementById("detailCategory").innerText = poll.category;
+            document.getElementById("detailTitle").innerText = poll.title;
+            document.getElementById("detailDescription").innerText = poll.description;
+            document.getElementById("detailCreatorName").innerText = poll.creator;
+            document.getElementById("detailCreatorAvatar").src = poll.avatar;
+            document.getElementById("detailDeadline").innerText = poll.deadline;
+            document.getElementById("detailTotalVotes").innerText = `全 ${totalVotes} 票`;
+
+            // 進捗ステータス判定
+            const statusBadge = document.getElementById("detailStatus");
+            if (isExpired) {
+                statusBadge.className = "bg-red-50 text-red-600 text-xs font-bold px-3 py-1 rounded-full";
+                statusBadge.innerHTML = `<i class="fa-solid fa-lock mr-1"></i>終了・締切`;
+            } else {
+                statusBadge.className = "bg-emerald-50 text-emerald-600 text-xs font-bold px-3 py-1 rounded-full";
+                statusBadge.innerHTML = `<i class="fa-solid fa-clock-rotate-left mr-1 animate-spin"></i>投票受付中`;
+            }
+
+            // 選択肢描画
+            const optionsContainer = document.getElementById("detailOptionsContainer");
+            optionsContainer.innerHTML = "";
+
+            const hasVoted = currentUser && (poll.voters || []).includes(currentUser.username);
+
+            Object.entries(poll.votes || {}).forEach(([option, count]) => {
+                const percentage = totalVotes > 0 ? Math.round((count / totalVotes) * 100) : 0;
+                const optionCard = document.createElement("div");
+                
+                if (isExpired || hasVoted) {
+                    optionCard.className = "relative border border-slate-100 rounded-xl p-4 overflow-hidden bg-slate-50 transition-all-300";
+                    optionCard.innerHTML = `
+                        <div class="absolute inset-y-0 left-0 bg-indigo-50/70 transition-all-1000" style="width: ${percentage}%"></div>
+                        <div class="relative flex justify-between items-center text-sm font-bold text-slate-700">
+                            <span class="flex items-center">
+                                ${option}
+                                ${currentUser && poll.votesSelected && poll.votesSelected[currentUser.username] === option ? '<i class="fa-solid fa-circle-check text-indigo-600 ml-2" title="あなたの投票"></i>' : ''}
+                            </span>
+                            <span class="text-indigo-600">${percentage}% <span class="text-xs font-normal text-slate-400">(${count} 票)</span></span>
+                        </div>
+                    `;
+                } else {
+                    optionCard.className = "border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/20 rounded-xl p-4 cursor-pointer transition-all-300 transform hover:-translate-y-0.5 flex justify-between items-center text-sm font-bold text-slate-700 group";
+                    optionCard.onclick = () => castVote(option);
+                    optionCard.innerHTML = `
+                        <span>${option}</span>
+                        <span class="text-xs text-indigo-500 opacity-0 group-hover:opacity-100 transition-all-300">
+                            投票する <i class="fa-solid fa-arrow-right ml-1"></i>
+                        </span>
+                    `;
+                }
+                optionsContainer.appendChild(optionCard);
+            });
+
+            renderComments(poll);
+        }
+
+        // 投票送信
+        async function castVote(option) {
+            if (!currentUser) {
+                showToast("投票するにはログインが必要です", "warning");
+                openAuthModal('login');
+                return;
+            }
+
+            const poll = polls.find(p => p.id === activePollId);
+            if (!poll) return;
+
+            const isExpired = poll.isClosedByAdmin || (new Date(poll.deadline) < new Date());
+            if (isExpired) {
+                showToast("この投票は既に締め切られています", "warning");
+                return;
+            }
+
+            const voters = poll.voters || [];
+            if (voters.includes(currentUser.username)) {
+                showToast("すでに投票済みです", "warning");
+                return;
+            }
+
+            // ローカル/DB上の集計更新オブジェクト作成
+            const updatedVotes = { ...poll.votes };
+            updatedVotes[option] = (updatedVotes[option] || 0) + 1;
+
+            const updatedVoters = [...voters, currentUser.username];
+            
+            const updatedVotesSelected = { ...(poll.votesSelected || {}) };
+            updatedVotesSelected[currentUser.username] = option;
+
+            try {
+                // 1. 投票ルームを更新
+                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                await updateDoc(pollDocRef, {
+                    votes: updatedVotes,
+                    voters: updatedVoters,
+                    votesSelected: updatedVotesSelected
+                });
+
+                // 2. ユーザー実績カウントを更新
+                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
+                const currentVotesCount = (currentUser.votesCount || 0) + 1;
+                await updateDoc(userDocRef, {
+                    votesCount: currentVotesCount
+                });
+
+                currentUser.votesCount = currentVotesCount;
+                sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                updateAuthUI();
+
+                showToast(`「${option}」に投票しました！`);
+            } catch (err) {
+                console.error("Cast vote error:", err);
+                showToast("投票に失敗しました", "warning");
+            }
+        }
+
+        // コメントログ
+        function renderComments(poll) {
+            const list = document.getElementById("commentsList");
+            const countBadge = document.getElementById("commentCount");
+            list.innerHTML = "";
+
+            const comments = poll.comments || [];
+            countBadge.innerText = comments.length;
+
+            if (comments.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-12 text-slate-400">
+                        <i class="fa-solid fa-comments text-3xl mb-2 text-slate-200"></i>
+                        <p class="text-xs">チャットがありません。最初の意見を投稿しましょう！</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // クラウドから取得したコメントを描画
+            comments.forEach((c, index) => {
+                const item = document.createElement("div");
+                item.className = `flex flex-col gap-2 p-3 rounded-2xl border transition-all-300 relative group ${c.isAdmin ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50 border-slate-100'} ${c.hasWarning ? 'border-amber-200 bg-amber-50/30' : ''}`;
+                
+                // コメント書き手情報とバッジ
+                const badgeStyle = c.userBadgeStyle || "bg-emerald-50 text-emerald-700 border-emerald-200";
+                const badgeName = c.userBadgeName || "🟢 ビギナー";
+
+                item.innerHTML = `
+                    <div class="flex gap-3">
+                        <img src="${c.avatar}" alt="avatar" class="w-8 h-8 rounded-full bg-white object-cover flex-shrink-0">
+                        <div class="space-y-1 flex-grow">
+                            <div class="flex flex-wrap items-center justify-between gap-1">
+                                <div class="flex items-center space-x-1.5 flex-wrap">
+                                    <span class="text-xs font-black text-slate-700">${c.username}</span>
+                                    ${c.isAdmin ? '<span class="bg-red-500 text-white text-[9px] px-1 rounded font-black scale-95">ADMIN</span>' : ''}
+                                    <span class="text-[9px] border px-1.5 py-0.5 rounded-full font-bold ${badgeStyle}">${badgeName}</span>
+                                </div>
+                                <span class="text-[10px] text-slate-400">${c.date}</span>
+                            </div>
+                            
+                            <!-- 警告マーク表示 -->
+                            ${c.hasWarning ? `
+                                <div class="text-[10px] text-amber-700 font-bold flex items-center mb-1">
+                                    <i class="fa-solid fa-triangle-exclamation mr-1 text-amber-500"></i> 管理者から警告を受けたコメントです。
+                                </div>
+                            ` : ''}
+
+                            <p class="text-slate-600 text-xs sm:text-sm whitespace-pre-line leading-relaxed ${c.hasWarning ? 'opacity-80 italic' : ''}">${c.text}</p>
+                        </div>
+                    </div>
+
+                    <!-- 管理者特権アクションボタン -->
+                    ${currentUser && currentUser.isAdmin ? `
+                        <div class="hidden group-hover:flex items-center space-x-2 absolute right-2 top-2 bg-white/95 border border-slate-100 shadow px-2 py-1 rounded-lg text-[10px] transition-all-300">
+                            <span class="text-slate-400 font-bold mr-1">管理者：</span>
+                            <button onclick="adminToggleWarning('${poll.id}', ${index})" class="text-amber-600 hover:text-amber-800 font-bold mr-1">
+                                <i class="fa-solid fa-circle-exclamation mr-0.5"></i> ${c.hasWarning ? '警告解除' : '警告する'}
+                            </button>
+                            <button onclick="adminDeleteComment('${poll.id}', ${index})" class="text-red-600 hover:text-red-800 font-bold">
+                                <i class="fa-solid fa-trash-can mr-0.5"></i> 削除
+                            </button>
+                        </div>
+                    ` : ''}
+                `;
+                list.appendChild(item);
+            });
+
+            // チャットログの最下部へ自動スクロール
+            setTimeout(() => {
+                list.scrollTop = list.scrollHeight;
+            }, 50);
+        }
+
+        // コメントをクラウドに書き込み
+        async function postComment() {
+            if (!currentUser) {
+                showToast("チャット発言するにはログインが必要です", "warning");
+                openAuthModal('login');
+                return;
+            }
+
+            const poll = polls.find(p => p.id === activePollId);
+            if (!poll) return;
+
+            const input = document.getElementById("commentText");
+            const text = input.value.trim();
+
+            if (!text) {
+                showToast("コメントを入力してください", "warning");
+                return;
+            }
+
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            // 最新の自身のバッジ状態を取得して書き込み情報へ埋め込む
+            const currentBadge = getUserBadge(currentUser);
+            const comments = poll.comments || [];
+
+            const newComment = {
+                id: `com-${Date.now()}`,
+                username: currentUser.username,
+                avatar: currentUser.avatar,
+                text: text,
+                date: dateStr,
+                hasWarning: false,
+                isAdmin: currentUser.isAdmin,
+                userBadgeName: currentBadge.name,
+                userBadgeStyle: currentBadge.style
+            };
+
+            try {
+                // 1. 投票コメントリストを更新
+                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                await updateDoc(pollDocRef, {
+                    comments: [...comments, newComment]
+                });
+
+                // 2. ユーザー実績カウントを更新
+                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
+                const currentPostCount = (currentUser.postCount || 0) + 1;
+                await updateDoc(userDocRef, {
+                    postCount: currentPostCount
+                });
+
+                currentUser.postCount = currentPostCount;
+                sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                updateAuthUI();
+
+                input.value = "";
+                showToast("コメントを投稿しました！");
+            } catch (err) {
+                console.error("Post comment error:", err);
+                showToast("コメント投稿に失敗しました", "warning");
+            }
+        }
+
+        // ================= ADMIN FUNCTIONS =================
+
+        async function adminTogglePollStatus() {
+            if (!currentUser || !currentUser.isAdmin) return;
+
+            const poll = polls.find(p => p.id === activePollId);
+            if (!poll) return;
+
+            try {
+                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                await updateDoc(pollDocRef, {
+                    isClosedByAdmin: !poll.isClosedByAdmin
+                });
+                showToast(poll.isClosedByAdmin ? "投票受付を再オープンしました" : "投票ルームの新規投票を締め切りました");
+            } catch (err) {
+                console.error("Admin toggle status error:", err);
+            }
+        }
+
+        async function adminToggleWarning(pollId, commentIndex) {
+            if (!currentUser || !currentUser.isAdmin) return;
+
+            const poll = polls.find(p => p.id === pollId);
+            if (!poll || !poll.comments || !poll.comments[commentIndex]) return;
+
+            const updatedComments = [...poll.comments];
+            updatedComments[commentIndex].hasWarning = !updatedComments[commentIndex].hasWarning;
+
+            try {
+                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                await updateDoc(pollDocRef, {
+                    comments: updatedComments
+                });
+                showToast(updatedComments[commentIndex].hasWarning ? "コメントに警告を付与しました" : "警告を解除しました");
+            } catch (err) {
+                console.error("Admin warning error:", err);
+            }
+        }
+
+        async function adminDeleteComment(pollId, commentIndex) {
+            if (!currentUser || !currentUser.isAdmin) return;
+
+            const poll = polls.find(p => p.id === pollId);
+            if (!poll || !poll.comments || !poll.comments[commentIndex]) return;
+
+            const updatedComments = [...poll.comments];
+            updatedComments.splice(commentIndex, 1);
+
+            try {
+                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                await updateDoc(pollDocRef, {
+                    comments: updatedComments
+                });
+                showToast("コメントを強制削除しました");
+            } catch (err) {
+                console.error("Admin delete comment error:", err);
+            }
+        }
+
+        // ================= GLOBAL EXPORTS (FOR MODULE SCOPE) =================
+        window.showPage = showPage;
+        window.searchPolls = searchPolls;
+        window.openAuthModal = openAuthModal;
+        window.toggleAuthMode = toggleAuthMode;
+        window.handleAuth = handleAuth;
+        window.logout = logout;
+        window.closeModal = closeModal;
+        window.openCreateModal = openCreateModal;
+        window.openBadgeModal = openBadgeModal;
+        window.addOptionInput = addOptionInput;
+        window.removeOptionInput = removeOptionInput;
+        window.handleCreatePoll = handleCreatePoll;
+        window.filterCategory = filterCategory;
+        window.sortPolls = sortPolls;
+        window.openPollDetail = openPollDetail;
+        window.castVote = castVote;
+        window.postComment = postComment;
+        window.adminTogglePollStatus = adminTogglePollStatus;
+        window.adminToggleWarning = adminToggleWarning;
+        window.adminDeleteComment = adminDeleteComment;
+
+    </script>
+</body>
+</html>

@@ -445,7 +445,22 @@
         // （例：apiKey: "AIzaS...", authDomain: "..." など）
         // 空（null）のままでも、ローカル保存モードとして安全に動作し続けます。
         // ===================================================================
-        const MY_CUSTOM_FIREBASE_CONFIG = null; 
+// ===================================================================
+        // 🌟 【自分専用のクラウドにする方法】
+        // もしPCとスマホでデータを完全にリアルタイム同期したい場合は、
+        // 無料のFirebaseアカウントを作って、取得した「構成オブジェクト」を
+        // 下記の「MY_CUSTOM_FIREBASE_CONFIG」の中身に貼り付けてください。
+        // （例：apiKey: "AIzaS...", authDomain: "..." など）
+        // 空（null）のままでも、ローカル保存モードとして安全に動作し続けます。
+        // ===================================================================
+        const MY_CUSTOM_FIREBASE_CONFIG = {
+            apiKey: "AIzaSyCfLjeAr126XnuRpFUQ3u_l5SQcl8LPu58",
+            authDomain: "my-vote-forum.firebaseapp.com",
+            projectId: "my-vote-forum",
+            storageBucket: "my-vote-forum.firebasestorage.app",
+            messagingSenderId: "549054559892",
+            appId: "1:549054559892:web:1ad8fa18d5eb962f622681"
+        };
 
         // ================= CONFIGURATION & INITIALIZATION =================
         let db = null;

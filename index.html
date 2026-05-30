@@ -437,7 +437,17 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ================= CONFIGURATION & INITIALIZATION (With Fail-Safe) =================
+        // ===================================================================
+        // 🌟 【自分専用のクラウドにする方法】
+        // もしPCとスマホでデータを完全にリアルタイム同期したい場合は、
+        // 無料のFirebaseアカウントを作って、取得した「構成オブジェクト」を
+        // 下記の「MY_CUSTOM_FIREBASE_CONFIG」の中身に貼り付けてください。
+        // （例：apiKey: "AIzaS...", authDomain: "..." など）
+        // 空（null）のままでも、ローカル保存モードとして安全に動作し続けます。
+        // ===================================================================
+        const MY_CUSTOM_FIREBASE_CONFIG = null; 
+
+        // ================= CONFIGURATION & INITIALIZATION =================
         let db = null;
         let auth = null;
         let isFirebaseMode = false;
@@ -446,14 +456,22 @@
 
         // Firebase初期化テスト
         try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                const firebaseConfig = JSON.parse(__firebase_config);
-                if (firebaseConfig && firebaseConfig.apiKey) {
-                    const app = initializeApp(firebaseConfig);
-                    auth = getAuth(app);
-                    db = getFirestore(app);
-                    isFirebaseMode = true;
-                }
+            let selectedConfig = null;
+
+            // 1. 自前のカスタム設定があるか確認
+            if (MY_CUSTOM_FIREBASE_CONFIG && MY_CUSTOM_FIREBASE_CONFIG.apiKey) {
+                selectedConfig = MY_CUSTOM_FIREBASE_CONFIG;
+            } 
+            // 2. なければワークスペース内の自動キーを使う
+            else if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                selectedConfig = JSON.parse(__firebase_config);
+            }
+
+            if (selectedConfig && selectedConfig.apiKey) {
+                const app = initializeApp(selectedConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                isFirebaseMode = true;
             }
         } catch (e) {
             console.warn("Firebase initialization skipped. Running in LocalStorage fallback mode.", e);

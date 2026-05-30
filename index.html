@@ -11,7 +11,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght=300;400;500;700;900&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Noto Sans JP', sans-serif;
@@ -57,6 +57,11 @@
                 
                 <!-- ヘッダー右側コントロール -->
                 <div class="flex items-center space-x-4">
+                    <!-- モード表示バッジ -->
+                    <span id="connectionModeBadge" class="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                        <i class="fa-solid fa-circle-notch animate-spin mr-1"></i>接続確認中
+                    </span>
+
                     <!-- 検索バー（デスクトップ） -->
                     <div class="relative hidden sm:block">
                         <span class="absolute inset-y-0 left-0 flex items-center pl-3">
@@ -107,10 +112,10 @@
                 </div>
                 <div class="relative z-10 max-w-2xl space-y-4">
                     <span class="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider backdrop-blur-sm">
-                        <i class="fa-solid fa-cloud mr-1"></i> クラウド保存でリアルタイムにみんなと繋がる！
+                        <i class="fa-solid fa-cloud mr-1"></i> クラウドとローカルの賢い自動切り替えに対応！
                     </span>
                     <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-none">誰でも作れる、熱く語れる。</h1>
-                    <p class="text-indigo-100 text-sm sm:text-base">メアド不要のスピードアカウント登録！自由に投票ルームを立ち上げて、他のユーザーとリアルタイムでチャット（議論）を楽しもう。発言数に応じて限定の活動称号バッジが付与されます！</p>
+                    <p class="text-indigo-100 text-sm sm:text-base">メアド不要のスピードアカウント登録！自由に投票ルームを立ち上げて、みんなとリアルタイムでチャットを楽しもう。発言数に応じて限定バッジが付与されます！</p>
                     <div class="flex flex-wrap gap-3 pt-2">
                         <button onclick="openCreateModal()" class="bg-white text-indigo-600 hover:bg-indigo-50 px-5 py-3 rounded-xl font-bold text-sm shadow-md transition-all-300 flex items-center">
                             <i class="fa-solid fa-circle-plus mr-2"></i> 投票ルームを立ち上げる
@@ -154,7 +159,7 @@
             <!-- 読込中インジケータ -->
             <div id="loadingIndicator" class="text-center py-16">
                 <i class="fa-solid fa-circle-notch text-4xl text-indigo-600 animate-spin mb-4 block"></i>
-                <span class="text-sm text-slate-500 font-medium">クラウドからデータをロードしています...</span>
+                <span class="text-sm text-slate-500 font-medium">データをロードしています...</span>
             </div>
 
             <!-- 空メッセージ -->
@@ -271,7 +276,7 @@
                 <i class="fa-solid fa-square-poll-vertical text-xl"></i>
                 <span>VoteForum Pro</span>
             </div>
-            <p class="text-xs text-slate-400">© 2026 VoteForum. クラウド保存 & リアルタイム・マルチプレイヤー同期対応</p>
+            <p class="text-xs text-slate-400">© 2026 VoteForum. クラウド＆ローカルハイブリッドシステム</p>
         </div>
     </footer>
 
@@ -432,15 +437,65 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, collection, onSnapshot, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ================= CONFIGURATION & INITIALIZATION =================
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        // ================= CONFIGURATION & INITIALIZATION (With Fail-Safe) =================
+        let db = null;
+        let auth = null;
+        let isFirebaseMode = false;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-        // 管理者コード定数
         const ADMIN_SECRET_CODE = "ADMIN123";
+
+        // Firebase初期化テスト
+        try {
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                const firebaseConfig = JSON.parse(__firebase_config);
+                if (firebaseConfig && firebaseConfig.apiKey) {
+                    const app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                    isFirebaseMode = true;
+                }
+            }
+        } catch (e) {
+            console.warn("Firebase initialization skipped. Running in LocalStorage fallback mode.", e);
+        }
+
+        // ローカルデータベース（Firebaseが使えない場合のフォールバック用）
+        const LOCAL_STORAGE_POLLS_KEY = `voteforum_polls_${appId}`;
+        const LOCAL_STORAGE_USERS_KEY = `voteforum_users_${appId}`;
+
+        // 初期のダミーデータ（初めて起動した際、これらが表示されます）
+        const INITIAL_DUMMY_POLLS = [
+            {
+                id: "poll-1",
+                title: "開発効率が一番上がるCSSアプローチはどれ？",
+                description: "フロントエンド開発の高速化が進む中、みなさんが現場で最も好んでいるCSS開発スタイルとその理由について議論しましょう！",
+                category: "ガジェット",
+                creator: "WebエンジニアA",
+                avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=A",
+                deadline: "2026-09-30",
+                isClosedByAdmin: false,
+                votes: { "Tailwind CSS": 38, "CSS Modules": 14, "Styled Components": 21, "Vanila CSS": 6 },
+                comments: [
+                    { id: "com-1", username: "コーダー職人", userBadgeName: "🟢 ビギナー", avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Koder", text: "Tailwindは直感的で構築がとても早くなります！", date: "2026-05-28 14:32", hasWarning: false, isAdmin: false }
+                ],
+                voters: ["コーダー職人"],
+                votesSelected: { "コーダー職人": "Tailwind CSS" }
+            },
+            {
+                id: "poll-2",
+                title: "今年、一番プレイしているゲーム機/デバイスは？",
+                description: "みなさんが今現在「一番時間を費やして遊んでいるハード」はどれですか？ゲーム業界の今後の展望も合わせてお聞かせください。",
+                category: "エンタメ",
+                creator: "ゲーム大好き",
+                avatar: "https://api.dicebear.com/7.x/adventurer/svg?seed=Game",
+                deadline: "2026-08-15",
+                isClosedByAdmin: false,
+                votes: { "PC (Steam等)": 62, "家庭用ゲーム機": 45, "スマホゲーム": 33 },
+                comments: [],
+                voters: [],
+                votesSelected: {}
+            }
+        ];
 
         // バッジ定義
         const BADGES = {
@@ -450,73 +505,150 @@
             king: { name: "👑 フォーラムの主", req: "チャット投稿数を50回以上に増やす", style: "bg-purple-50 text-purple-700 border-purple-200" }
         };
 
-        // ローカルでのデータキャッシュ
+        // ローカルメモリ内のキャッシュ
         let polls = [];
         let currentUser = null;
         let activePage = "home";
         let activePollId = null;
         let selectedCategory = "all";
-        let authStateInit = false;
 
-        // ================= FIRESTORE PATHS (RULE 1) =================
-        // パブリック公開データ保存パス
-        const pollsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'polls');
-        const usersCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'users');
+        // ================= DATA STORAGE FALLBACK HELPERS =================
 
-        // ================= AUTHENTICATION FLOW (RULE 3) =================
-        const initAuth = async () => {
+        // 1. データの読み込み
+        function loadLocalData() {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
+                const rawPolls = localStorage.getItem(LOCAL_STORAGE_POLLS_KEY);
+                if (rawPolls) {
+                    polls = JSON.parse(rawPolls);
                 } else {
-                    await signInAnonymously(auth);
+                    polls = INITIAL_DUMMY_POLLS;
+                    localStorage.setItem(LOCAL_STORAGE_POLLS_KEY, JSON.stringify(polls));
                 }
-            } catch (err) {
-                console.error("Auth init failed:", err);
-                showToast("データベース接続エラーが発生しました", "warning");
+            } catch (e) {
+                polls = INITIAL_DUMMY_POLLS;
+            }
+        }
+
+        // 2. データの保存
+        function saveLocalData() {
+            try {
+                localStorage.setItem(LOCAL_STORAGE_POLLS_KEY, JSON.stringify(polls));
+            } catch (e) {
+                console.error("Local save failed", e);
+            }
+        }
+
+        // 3. ローカルユーザーの取得・保存
+        function getLocalUser(username) {
+            try {
+                const usersRaw = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
+                const users = usersRaw ? JSON.parse(usersRaw) : {};
+                return users[username] || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function saveLocalUser(userData) {
+            try {
+                const usersRaw = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
+                const users = usersRaw ? JSON.parse(usersRaw) : {};
+                users[userData.username] = userData;
+                localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(users));
+            } catch (e) {
+                console.error("Local user save failed", e);
+            }
+        }
+
+
+        // ================= AUTHENTICATION FLOW =================
+        const initAuth = async () => {
+            // UIに接続モードを表示
+            const modeBadge = document.getElementById("connectionModeBadge");
+
+            if (isFirebaseMode) {
+                modeBadge.className = "text-[10px] font-bold px-2 py-1 rounded-full bg-indigo-100 text-indigo-700";
+                modeBadge.innerHTML = `<i class="fa-solid fa-cloud mr-1"></i>クラウド接続`;
+                try {
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+                } catch (err) {
+                    console.error("Auth init failed, switching to local:", err);
+                    setupLocalMode(modeBadge);
+                }
+            } else {
+                setupLocalMode(modeBadge);
             }
         };
 
-        // 一番最初に起動
-        initAuth();
-
-        // ログイン監視
-        onAuthStateChanged(auth, async (firebaseUser) => {
-            authStateInit = true;
-            // 現在ログイン中のフォーラム用ユーザーがいるか確認
+        function setupLocalMode(badgeElement) {
+            isFirebaseMode = false;
+            badgeElement.className = "text-[10px] font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-700";
+            badgeElement.innerHTML = `<i class="fa-solid fa-hard-drive mr-1"></i>ローカル保存`;
+            
+            // ローカルから即座にデータを読み込む
+            loadLocalData();
+            document.getElementById("loadingIndicator").classList.add("hidden");
+            
+            // ログインセッションの確認
             const storedUser = sessionStorage.getItem("forum_user");
             if (storedUser) {
-                const userObj = JSON.parse(storedUser);
-                // データベース上の最新の統計(発言数など)を取得
-                const userSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userObj.username));
-                if (userSnap.exists()) {
-                    currentUser = userSnap.data();
-                    sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
-                } else {
-                    currentUser = userObj;
-                }
+                const parsed = JSON.parse(storedUser);
+                currentUser = getLocalUser(parsed.username) || parsed;
+                sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
             } else {
                 currentUser = null;
             }
+
             updateAuthUI();
-            
-            // データのリアルタイム購読（認証後に行う）
-            subscribeToPolls();
-        });
+            renderPolls();
+        }
+
+        // 初期化実行
+        initAuth();
+
+        // Firebase監視設定
+        if (isFirebaseMode) {
+            onAuthStateChanged(auth, async (firebaseUser) => {
+                const storedUser = sessionStorage.getItem("forum_user");
+                if (storedUser) {
+                    const userObj = JSON.parse(storedUser);
+                    try {
+                        const userSnap = await getDoc(doc(db, 'artifacts', appId, 'public', 'data', 'users', userObj.username));
+                        if (userSnap.exists()) {
+                            currentUser = userSnap.data();
+                            sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                        } else {
+                            currentUser = userObj;
+                        }
+                    } catch (e) {
+                        currentUser = userObj;
+                    }
+                } else {
+                    currentUser = null;
+                }
+                updateAuthUI();
+                subscribeToPolls();
+            });
+        }
 
         // ================= REALTIME SYNC (onSnapshot) =================
         let unsubscribePolls = null;
         function subscribeToPolls() {
+            if (!isFirebaseMode) return;
             if (unsubscribePolls) unsubscribePolls();
 
-            // RULE 2: 複雑なクエリは避け、クライアント側でフィルタ・ソートを行う
+            const pollsCollectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'polls');
+
             unsubscribePolls = onSnapshot(pollsCollectionRef, (snapshot) => {
                 polls = [];
                 snapshot.forEach(doc => {
                     polls.push({ ...doc.data(), id: doc.id });
                 });
 
-                // インジケータを隠す
                 document.getElementById("loadingIndicator").classList.add("hidden");
 
                 if (activePage === "home") {
@@ -525,8 +657,9 @@
                     renderPollDetails();
                 }
             }, (error) => {
-                console.error("Firestore polls listener error:", error);
-                showToast("データ同期中にエラーが発生しました", "warning");
+                console.error("Firestore polls listener error, fallback to local:", error);
+                const modeBadge = document.getElementById("connectionModeBadge");
+                setupLocalMode(modeBadge);
             });
         }
 
@@ -633,12 +766,55 @@
                 return;
             }
 
-            const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', username);
+            if (isFirebaseMode) {
+                // Firebaseモード時の処理
+                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', username);
+                try {
+                    if (mode === "register") {
+                        const userSnap = await getDoc(userDocRef);
+                        if (userSnap.exists()) {
+                            showToast("そのユーザー名はすでに使われています", "warning");
+                            return;
+                        }
 
-            try {
+                        const isAdmin = (adminCode === ADMIN_SECRET_CODE);
+                        const userAvatarUrl = `https://api.dicebear.com/7.x/adventurer/svg?seed=${username}`;
+
+                        const newUser = {
+                            username: username,
+                            password: password,
+                            isAdmin: isAdmin,
+                            postCount: 0,
+                            votesCount: 0,
+                            avatar: userAvatarUrl
+                        };
+
+                        await setDoc(userDocRef, newUser);
+                        currentUser = newUser;
+                        sessionStorage.setItem("forum_user", JSON.stringify(newUser));
+                        showToast(isAdmin ? "管理者として登録・ログインしました！" : "登録が完了し、ログインしました！");
+                    } else {
+                        const userSnap = await getDoc(userDocRef);
+                        if (!userSnap.exists() || userSnap.data().password !== password) {
+                            showToast("ユーザー名またはパスワードが正しくありません", "warning");
+                            return;
+                        }
+                        currentUser = userSnap.data();
+                        sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                        showToast(`${username} としてログインしました！`);
+                    }
+                } catch (err) {
+                    console.error("Auth process error, fallback to local:", err);
+                    showToast("通信エラーのため、一時的にローカルログインに切り替えます", "warning");
+                    isFirebaseMode = false;
+                }
+            }
+            
+            // ローカルモード（またはフォールバック時）の処理
+            if (!isFirebaseMode) {
+                const localUser = getLocalUser(username);
                 if (mode === "register") {
-                    const userSnap = await getDoc(userDocRef);
-                    if (userSnap.exists()) {
+                    if (localUser) {
                         showToast("そのユーザー名はすでに使われています", "warning");
                         return;
                     }
@@ -655,37 +831,28 @@
                         avatar: userAvatarUrl
                     };
 
-                    await setDoc(userDocRef, newUser);
+                    saveLocalUser(newUser);
                     currentUser = newUser;
                     sessionStorage.setItem("forum_user", JSON.stringify(newUser));
-                    
-                    if (isAdmin) {
-                        showToast("管理者としてアカウントを登録し、ログインしました！");
-                    } else {
-                        showToast("スピード登録が完了してログインしました！");
-                    }
+                    showToast(isAdmin ? "【ローカル管理者】登録が完了しました！" : "【ローカル】アカウント作成が完了しました！");
                 } else {
-                    const userSnap = await getDoc(userDocRef);
-                    if (!userSnap.exists() || userSnap.data().password !== password) {
+                    if (!localUser || localUser.password !== password) {
                         showToast("ユーザー名またはパスワードが正しくありません", "warning");
                         return;
                     }
-                    currentUser = userSnap.data();
+                    currentUser = localUser;
                     sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
-                    showToast(`${username} としてログインしました！`);
+                    showToast(`ログインしました！(ローカルセッション)`);
                 }
+            }
 
-                updateAuthUI();
-                closeModal();
-                
-                if (activePage === "detail") {
-                    renderPollDetails();
-                } else {
-                    renderPolls();
-                }
-            } catch (err) {
-                console.error("Auth process error:", err);
-                showToast("認証に失敗しました。再試行してください。", "warning");
+            updateAuthUI();
+            closeModal();
+            
+            if (activePage === "detail") {
+                renderPollDetails();
+            } else {
+                renderPolls();
             }
         }
 
@@ -768,13 +935,20 @@
             if (!currentUser) return;
             const modal = document.getElementById("badgeModal");
             
-            // クラウドから最新情報を取得
-            const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
-            const snap = await getDoc(userDocRef);
-            if (snap.exists()) {
-                currentUser = snap.data();
-                sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
-                updateAuthUI();
+            if (isFirebaseMode) {
+                try {
+                    const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
+                    const snap = await getDoc(userDocRef);
+                    if (snap.exists()) {
+                        currentUser = snap.data();
+                        sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                        updateAuthUI();
+                    }
+                } catch (e) {
+                    console.warn("Could not sync user profile with server", e);
+                }
+            } else {
+                currentUser = getLocalUser(currentUser.username) || currentUser;
             }
 
             document.getElementById("badgeModalVotesCount").innerText = currentUser.votesCount || 0;
@@ -861,7 +1035,7 @@
             }, 200);
         }
 
-        // ================= POLL MANAGEMENT (WRITE TO DB) =================
+        // ================= POLL MANAGEMENT =================
         async function handleCreatePoll(e) {
             e.preventDefault();
             if (!currentUser) return;
@@ -904,26 +1078,37 @@
                 votesSelected: {}
             };
 
-            try {
-                // クラウド上のコレクションへ追加
-                await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'polls', pollId), newPoll);
-                showToast("新しい投票ルームをオープンしました！");
-                closeModal();
-
-                // フォームリセット
-                document.getElementById("createPollForm").reset();
-                document.getElementById("optionInputsContainer").innerHTML = `
-                    <div class="flex items-center gap-2">
-                        <input type="text" placeholder="選択肢 1" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <input type="text" placeholder="選択肢 2" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                    </div>
-                `;
-            } catch (err) {
-                console.error("Failed to add poll to Firebase:", err);
-                showToast("データベースへの追加に失敗しました", "warning");
+            if (isFirebaseMode) {
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'public', 'data', 'polls', pollId), newPoll);
+                    showToast("新しい投票ルームをオープンしました！");
+                    closeModal();
+                } catch (err) {
+                    console.error("Failed to add poll to Firebase, fallback locally:", err);
+                    saveLocally();
+                }
+            } else {
+                saveLocally();
             }
+
+            function saveLocally() {
+                polls.unshift(newPoll);
+                saveLocalData();
+                showToast("新しい投票ルームを作成しました(ローカル)");
+                closeModal();
+                renderPolls();
+            }
+
+            // フォームリセット
+            document.getElementById("createPollForm").reset();
+            document.getElementById("optionInputsContainer").innerHTML = `
+                <div class="flex items-center gap-2">
+                    <input type="text" placeholder="選択肢 1" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="text" placeholder="選択肢 2" required class="poll-option-input w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+            `;
         }
 
         // ================= RENDERS =================
@@ -1139,39 +1324,52 @@
                 return;
             }
 
-            // ローカル/DB上の集計更新オブジェクト作成
+            // 新しい集計データの作成
             const updatedVotes = { ...poll.votes };
             updatedVotes[option] = (updatedVotes[option] || 0) + 1;
-
             const updatedVoters = [...voters, currentUser.username];
-            
             const updatedVotesSelected = { ...(poll.votesSelected || {}) };
             updatedVotesSelected[currentUser.username] = option;
 
-            try {
-                // 1. 投票ルームを更新
-                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
-                await updateDoc(pollDocRef, {
-                    votes: updatedVotes,
-                    voters: updatedVoters,
-                    votesSelected: updatedVotesSelected
-                });
+            if (isFirebaseMode) {
+                try {
+                    const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                    await updateDoc(pollDocRef, {
+                        votes: updatedVotes,
+                        voters: updatedVoters,
+                        votesSelected: updatedVotesSelected
+                    });
 
-                // 2. ユーザー実績カウントを更新
-                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
-                const currentVotesCount = (currentUser.votesCount || 0) + 1;
-                await updateDoc(userDocRef, {
-                    votesCount: currentVotesCount
-                });
+                    const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
+                    const currentVotesCount = (currentUser.votesCount || 0) + 1;
+                    await updateDoc(userDocRef, { votesCount: currentVotesCount });
 
-                currentUser.votesCount = currentVotesCount;
+                    currentUser.votesCount = currentVotesCount;
+                    sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                    updateAuthUI();
+                    showToast(`「${option}」に投票しました！`);
+                } catch (err) {
+                    console.error("Cast vote error, fallback local:", err);
+                    saveLocally();
+                }
+            } else {
+                saveLocally();
+            }
+
+            function saveLocally() {
+                poll.votes = updatedVotes;
+                poll.voters = updatedVoters;
+                if (!poll.votesSelected) poll.votesSelected = {};
+                poll.votesSelected[currentUser.username] = option;
+
+                currentUser.votesCount = (currentUser.votesCount || 0) + 1;
+                saveLocalUser(currentUser);
                 sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
-                updateAuthUI();
 
-                showToast(`「${option}」に投票しました！`);
-            } catch (err) {
-                console.error("Cast vote error:", err);
-                showToast("投票に失敗しました", "warning");
+                saveLocalData();
+                updateAuthUI();
+                renderPollDetails();
+                showToast(`「${option}」に投票しました！(ローカル)`);
             }
         }
 
@@ -1194,12 +1392,11 @@
                 return;
             }
 
-            // クラウドから取得したコメントを描画
+            // コメントを描画
             comments.forEach((c, index) => {
                 const item = document.createElement("div");
                 item.className = `flex flex-col gap-2 p-3 rounded-2xl border transition-all-300 relative group ${c.isAdmin ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50 border-slate-100'} ${c.hasWarning ? 'border-amber-200 bg-amber-50/30' : ''}`;
                 
-                // コメント書き手情報とバッジ
                 const badgeStyle = c.userBadgeStyle || "bg-emerald-50 text-emerald-700 border-emerald-200";
                 const badgeName = c.userBadgeName || "🟢 ビギナー";
 
@@ -1249,7 +1446,7 @@
             }, 50);
         }
 
-        // コメントをクラウドに書き込み
+        // コメント投稿
         async function postComment() {
             if (!currentUser) {
                 showToast("チャット発言するにはログインが必要です", "warning");
@@ -1271,7 +1468,6 @@
             const now = new Date();
             const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-            // 最新の自身のバッジ状態を取得して書き込み情報へ埋め込む
             const currentBadge = getUserBadge(currentUser);
             const comments = poll.comments || [];
 
@@ -1287,29 +1483,43 @@
                 userBadgeStyle: currentBadge.style
             };
 
-            try {
-                // 1. 投票コメントリストを更新
-                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
-                await updateDoc(pollDocRef, {
-                    comments: [...comments, newComment]
-                });
+            const updatedComments = [...comments, newComment];
 
-                // 2. ユーザー実績カウントを更新
-                const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
-                const currentPostCount = (currentUser.postCount || 0) + 1;
-                await updateDoc(userDocRef, {
-                    postCount: currentPostCount
-                });
+            if (isFirebaseMode) {
+                try {
+                    const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                    await updateDoc(pollDocRef, { comments: updatedComments });
 
-                currentUser.postCount = currentPostCount;
+                    const userDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'users', currentUser.username);
+                    const currentPostCount = (currentUser.postCount || 0) + 1;
+                    await updateDoc(userDocRef, { postCount: currentPostCount });
+
+                    currentUser.postCount = currentPostCount;
+                    sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+                    updateAuthUI();
+
+                    input.value = "";
+                    showToast("コメントを投稿しました！");
+                } catch (err) {
+                    console.error("Post comment error, fallback local:", err);
+                    saveLocally();
+                }
+            } else {
+                saveLocally();
+            }
+
+            function saveLocally() {
+                poll.comments = updatedComments;
+                currentUser.postCount = (currentUser.postCount || 0) + 1;
+                saveLocalUser(currentUser);
                 sessionStorage.setItem("forum_user", JSON.stringify(currentUser));
+
+                saveLocalData();
                 updateAuthUI();
+                renderPollDetails();
 
                 input.value = "";
-                showToast("コメントを投稿しました！");
-            } catch (err) {
-                console.error("Post comment error:", err);
-                showToast("コメント投稿に失敗しました", "warning");
+                showToast("コメントを投稿しました！(ローカル)");
             }
         }
 
@@ -1321,14 +1531,21 @@
             const poll = polls.find(p => p.id === activePollId);
             if (!poll) return;
 
-            try {
-                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
-                await updateDoc(pollDocRef, {
-                    isClosedByAdmin: !poll.isClosedByAdmin
-                });
-                showToast(poll.isClosedByAdmin ? "投票受付を再オープンしました" : "投票ルームの新規投票を締め切りました");
-            } catch (err) {
-                console.error("Admin toggle status error:", err);
+            const newStatus = !poll.isClosedByAdmin;
+
+            if (isFirebaseMode) {
+                try {
+                    const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                    await updateDoc(pollDocRef, { isClosedByAdmin: newStatus });
+                    showToast(newStatus ? "投票ルームを締め切りました" : "投票受付を再オープンしました");
+                } catch (err) {
+                    console.error("Admin toggle status error:", err);
+                }
+            } else {
+                poll.isClosedByAdmin = newStatus;
+                saveLocalData();
+                renderPollDetails();
+                showToast(newStatus ? "【ローカル】投票を締め切りました" : "【ローカル】投票を再オープンしました");
             }
         }
 
@@ -1341,14 +1558,19 @@
             const updatedComments = [...poll.comments];
             updatedComments[commentIndex].hasWarning = !updatedComments[commentIndex].hasWarning;
 
-            try {
-                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
-                await updateDoc(pollDocRef, {
-                    comments: updatedComments
-                });
-                showToast(updatedComments[commentIndex].hasWarning ? "コメントに警告を付与しました" : "警告を解除しました");
-            } catch (err) {
-                console.error("Admin warning error:", err);
+            if (isFirebaseMode) {
+                try {
+                    const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                    await updateDoc(pollDocRef, { comments: updatedComments });
+                    showToast(updatedComments[commentIndex].hasWarning ? "コメントに警告を付与しました" : "警告を解除しました");
+                } catch (err) {
+                    console.error("Admin warning error:", err);
+                }
+            } else {
+                poll.comments = updatedComments;
+                saveLocalData();
+                renderPollDetails();
+                showToast("【ローカル】警告状態をトグルしました");
             }
         }
 
@@ -1361,14 +1583,19 @@
             const updatedComments = [...poll.comments];
             updatedComments.splice(commentIndex, 1);
 
-            try {
-                const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
-                await updateDoc(pollDocRef, {
-                    comments: updatedComments
-                });
-                showToast("コメントを強制削除しました");
-            } catch (err) {
-                console.error("Admin delete comment error:", err);
+            if (isFirebaseMode) {
+                try {
+                    const pollDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'polls', poll.id);
+                    await updateDoc(pollDocRef, { comments: updatedComments });
+                    showToast("コメントを強制削除しました");
+                } catch (err) {
+                    console.error("Admin delete comment error:", err);
+                }
+            } else {
+                poll.comments = updatedComments;
+                saveLocalData();
+                renderPollDetails();
+                showToast("【ローカル】コメントを削除しました");
             }
         }
 
